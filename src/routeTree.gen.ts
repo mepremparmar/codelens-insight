@@ -15,6 +15,7 @@ import { Route as ChallengesRouteImport } from './routes/challenges'
 import { Route as ConceptsRouteImport } from './routes/concepts'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as HistoryRouteImport } from './routes/history'
+import { Route as ProgressRouteImport } from './routes/progress'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,11 @@ const HistoryRoute = HistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProgressRoute = ProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/concepts': typeof ConceptsRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
+  '/progress': typeof ProgressRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/concepts': typeof ConceptsRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
+  '/progress': typeof ProgressRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,13 +79,27 @@ export interface FileRoutesById {
   '/concepts': typeof ConceptsRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
+  '/progress': typeof ProgressRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/analyze' | '/challenges' | '/concepts' | '/dashboard' | '/history'
+    | '/'
+    | '/analyze'
+    | '/challenges'
+    | '/concepts'
+    | '/dashboard'
+    | '/history'
+    | '/progress'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/analyze' | '/challenges' | '/concepts' | '/dashboard' | '/history'
+  to:
+    | '/'
+    | '/analyze'
+    | '/challenges'
+    | '/concepts'
+    | '/dashboard'
+    | '/history'
+    | '/progress'
   id:
     | '__root__'
     | '/'
@@ -86,6 +108,7 @@ export interface FileRouteTypes {
     | '/concepts'
     | '/dashboard'
     | '/history'
+    | '/progress'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,6 +118,7 @@ export interface RootRouteChildren {
   ConceptsRoute: typeof ConceptsRoute
   DashboardRoute: typeof DashboardRoute
   HistoryRoute: typeof HistoryRoute
+  ProgressRoute: typeof ProgressRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -141,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/progress': {
+      id: '/progress'
+      path: '/progress'
+      fullPath: '/progress'
+      preLoaderRoute: typeof ProgressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -151,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConceptsRoute: ConceptsRoute,
   DashboardRoute: DashboardRoute,
   HistoryRoute: HistoryRoute,
+  ProgressRoute: ProgressRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
