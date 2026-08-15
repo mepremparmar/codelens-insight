@@ -34,7 +34,7 @@ export function StatCard({
         </span>
       </div>
       <p className="mt-4 text-3xl font-semibold tracking-tight">
-        <CountUp to={value} suffix={suffix} />
+        <CountUp to={value} suffix={suffix ?? ""} />
       </p>
       {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
     </motion.div>
