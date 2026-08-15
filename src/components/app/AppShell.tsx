@@ -31,8 +31,8 @@ const NAV = [
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <Link to="/" className="flex items-center gap-2.5">
-      <span className="grid size-8 place-items-center rounded-lg border border-primary/30 bg-[color-mix(in_oklab,var(--primary)_18%,transparent)] text-primary">
-        <Sparkles className="size-4" />
+      <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-primary/30 bg-[color-mix(in_oklab,var(--primary)_14%,transparent)] p-1 transition-transform hover:scale-105">
+        <img src="/logo.png" alt="CodeLens AI Logo" className="size-full object-contain" />
       </span>
       {!compact && (
         <span className="leading-tight">
