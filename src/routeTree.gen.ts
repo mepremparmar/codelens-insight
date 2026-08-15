@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalyzeRouteImport } from './routes/analyze'
 import { Route as ChallengesRouteImport } from './routes/challenges'
+import { Route as ConceptsRouteImport } from './routes/concepts'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const ChallengesRoute = ChallengesRouteImport.update({
   path: '/challenges',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConceptsRoute = ConceptsRouteImport.update({
+  id: '/concepts',
+  path: '/concepts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analyze': typeof AnalyzeRoute
   '/challenges': typeof ChallengesRoute
+  '/concepts': typeof ConceptsRoute
   '/dashboard': typeof DashboardRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analyze': typeof AnalyzeRoute
   '/challenges': typeof ChallengesRoute
+  '/concepts': typeof ConceptsRoute
   '/dashboard': typeof DashboardRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analyze': typeof AnalyzeRoute
   '/challenges': typeof ChallengesRoute
+  '/concepts': typeof ConceptsRoute
   '/dashboard': typeof DashboardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/analyze' | '/challenges' | '/dashboard'
+  fullPaths: '/' | '/analyze' | '/challenges' | '/concepts' | '/dashboard'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/analyze' | '/challenges' | '/dashboard'
-  id: '__root__' | '/' | '/analyze' | '/challenges' | '/dashboard'
+  to: '/' | '/analyze' | '/challenges' | '/concepts' | '/dashboard'
+  id: '__root__' | '/' | '/analyze' | '/challenges' | '/concepts' | '/dashboard'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyzeRoute: typeof AnalyzeRoute
   ChallengesRoute: typeof ChallengesRoute
+  ConceptsRoute: typeof ConceptsRoute
   DashboardRoute: typeof DashboardRoute
 }
 
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChallengesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/concepts': {
+      id: '/concepts'
+      path: '/concepts'
+      fullPath: '/concepts'
+      preLoaderRoute: typeof ConceptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyzeRoute: AnalyzeRoute,
   ChallengesRoute: ChallengesRoute,
+  ConceptsRoute: ConceptsRoute,
   DashboardRoute: DashboardRoute,
 }
 export const routeTree = rootRouteImport
