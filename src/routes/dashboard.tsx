@@ -4,7 +4,8 @@ import { Brain, Code2, Flame, Swords, ArrowRight } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/app/AppShell";
 import { StatCard } from "@/components/kit/StatCard";
 import { Chip, ProgressBar, difficultyTone } from "@/components/kit/primitives";
-import { CONCEPTS, HISTORY, WEAKEST } from "@/lib/demo-data";
+import { CONCEPTS } from "@/lib/demo-data";
+import { useAppStore } from "@/lib/store";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -26,10 +27,26 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
+  const storeState = useAppStore();
+
+  const totalAnalyses = storeState.history.length;
+  const totalConceptsLearned = Object.values(storeState.conceptMastery).filter((v) => v > 60).length;
+  const totalChallengesCompleted = storeState.completedChallenges.length;
+  const streak = storeState.profile.streak;
+
+  // Compute weakest concepts dynamically
+  const sortedConcepts = [...CONCEPTS].sort((a, b) => {
+    const ma = storeState.conceptMastery[a.id] ?? a.mastery;
+    const mb = storeState.conceptMastery[b.id] ?? b.mastery;
+    return ma - mb;
+  });
+
+  const weakestConcepts = sortedConcepts.slice(0, 3);
+
   return (
     <AppShell title="Dashboard">
       <PageHeader
-        title={<>Good morning, Prem 👋</>}
+        title={<>Good morning, {storeState.profile.name.split(" ")[0]} 👋</>}
         subtitle="Let's turn some code into knowledge."
         action={
           <Link
@@ -43,24 +60,24 @@ function Dashboard() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Code Analyses" value={24} icon={Code2} hint="+3 this week" index={0} />
+        <StatCard label="Code Analyses" value={totalAnalyses} icon={Code2} hint="+3 this week" index={0} />
         <StatCard
           label="Concepts Learned"
-          value={68}
+          value={totalConceptsLearned}
           icon={Brain}
-          hint="12 at mastery > 80%"
+          hint={`${Object.values(storeState.conceptMastery).filter((v) => v > 80).length} at mastery > 80%`}
           index={1}
         />
         <StatCard
           label="Challenges Completed"
-          value={31}
+          value={totalChallengesCompleted}
           icon={Swords}
-          hint="86% average score"
+          hint="88% average score"
           index={2}
         />
         <StatCard
           label="Learning Streak"
-          value={7}
+          value={streak}
           suffix=" days"
           icon={Flame}
           hint="Personal best: 11 days"
@@ -85,10 +102,11 @@ function Dashboard() {
             </Link>
           </div>
           <div className="space-y-3">
-            {HISTORY.slice(0, 4).map((h) => (
+            {storeState.history.slice(0, 4).map((h) => (
               <Link
                 key={h.id}
                 to="/analyze"
+                search={{ id: h.id }}
                 className="hover-lift flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3"
               >
                 <div className="min-w-0 flex-1">
@@ -117,22 +135,22 @@ function Dashboard() {
             Practising these moves your overall score the most.
           </p>
           <ol className="mt-5 space-y-4">
-            {WEAKEST.map((w, i) => {
-              const c = CONCEPTS.find((x) => x.name === w);
+            {weakestConcepts.map((c, i) => {
+              const masteryVal = storeState.conceptMastery[c.id] ?? c.mastery;
               return (
-                <li key={w}>
+                <li key={c.id}>
                   <div className="mb-1.5 flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2">
                       <span className="font-mono text-xs text-muted-foreground">
                         {i + 1}
                       </span>
-                      {w}
+                      {c.name}
                     </span>
                     <span className="font-mono text-xs text-muted-foreground">
-                      {c?.mastery ?? 42}%
+                      {masteryVal}%
                     </span>
                   </div>
-                  <ProgressBar value={c?.mastery ?? 42} tone="warning" />
+                  <ProgressBar value={masteryVal} tone="warning" />
                 </li>
               );
             })}
@@ -157,24 +175,27 @@ function Dashboard() {
           </Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {CONCEPTS.slice(0, 4).map((c, i) => (
-            <motion.div
-              key={c.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.28 + i * 0.05 }}
-              className="panel hover-lift p-4"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-mono text-xs font-semibold uppercase">{c.name}</p>
-                <span className="font-mono text-xs text-cyan">{c.mastery}%</span>
-              </div>
-              <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                {c.summary}
-              </p>
-              <ProgressBar className="mt-3" value={c.mastery} />
-            </motion.div>
-          ))}
+          {CONCEPTS.slice(0, 4).map((c, i) => {
+            const m = storeState.conceptMastery[c.id] ?? c.mastery;
+            return (
+              <motion.div
+                key={c.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.28 + i * 0.05 }}
+                className="panel hover-lift p-4"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-mono text-xs font-semibold uppercase">{c.name}</p>
+                  <span className="font-mono text-xs text-cyan">{m}%</span>
+                </div>
+                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                  {c.summary}
+                </p>
+                <ProgressBar className="mt-3" value={m} />
+              </motion.div>
+            );
+          })}
         </div>
       </section>
     </AppShell>

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { useState } from "react";
 import { Logo } from "@/components/app/AppShell";
+import { appStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/onboarding")({
@@ -51,7 +52,11 @@ const STEPS = [
 function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState<string[][]>([[], [], []]);
+  const [answers, setAnswers] = useState<string[][]>([
+    ["JavaScript", "React", "AWS"],
+    ["Intermediate"],
+    ["Understand existing code", "Build projects"],
+  ]);
   const current = STEPS[step]!;
 
   const toggle = (opt: string) => {
@@ -65,6 +70,15 @@ function Onboarding() {
       }
       return next;
     });
+  };
+
+  const handleFinish = () => {
+    appStore.setOnboarding({
+      interests: answers[0] || ["JavaScript", "React"],
+      experience: answers[1]?.[0] || "Intermediate",
+      goals: answers[2] || ["Build projects"],
+    });
+    navigate({ to: "/dashboard" });
   };
 
   return (
@@ -141,7 +155,7 @@ function Onboarding() {
               </button>
             ) : (
               <button
-                onClick={() => navigate({ to: "/dashboard" })}
+                onClick={handleFinish}
                 className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.02]"
               >
                 Create My Learning Path <ArrowRight className="size-4" />

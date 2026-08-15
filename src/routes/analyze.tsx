@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { FileUp, Play, ClipboardPaste, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { FileUp, Play, ClipboardPaste, Sparkles, CheckCircle2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppShell, PageHeader } from "@/components/app/AppShell";
 import { CodeEditor } from "@/components/code/CodeEditor";
@@ -10,10 +10,15 @@ import { AnalyzingOverlay } from "@/components/kit/AnalyzingOverlay";
 import { ConceptCard } from "@/components/kit/ConceptCard";
 import { FlowDiagram } from "@/components/kit/FlowDiagram";
 import { Chip, ProgressBar } from "@/components/kit/primitives";
-import { CONCEPTS, FLOW, LANGUAGES, SAMPLE_CODE, type FlowStep } from "@/lib/demo-data";
+import { LANGUAGES, SAMPLE_CODE, type FlowStep } from "@/lib/demo-data";
+import { requestCodeAnalysis } from "@/lib/api";
+import { appStore, useAppStore, type AnalysisResult } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/analyze")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    id: typeof search.id === "string" ? search.id : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Analyze Code — CodeLens AI" },
@@ -35,13 +40,11 @@ export const Route = createFileRoute("/analyze")({
 const TABS = ["Overview", "Concepts", "Execution Flow", "AI Tutor"] as const;
 type Tab = (typeof TABS)[number];
 
-const DETECTED = CONCEPTS.filter((c) =>
-  ["async-await", "rest-api", "promises", "json", "error-handling", "react-hooks", "aws-lambda", "api-gateway"].includes(
-    c.id,
-  ),
-);
-
 function Analyze() {
+  const search = useSearch({ from: "/analyze" });
+  const storeState = useAppStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [code, setCode] = useState(SAMPLE_CODE);
   const [language, setLanguage] = useState("React");
   const [tab, setTab] = useState<Tab>("Overview");
@@ -49,10 +52,94 @@ function Analyze() {
   const [ready, setReady] = useState(true);
   const [hovered, setHovered] = useState<FlowStep | null>(null);
   const [activeConcept, setActiveConcept] = useState<string | null>(null);
+  const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
+  const [fileName, setFileName] = useState<string | undefined>("useResumeAnalysis.ts");
+
+  // Load existing analysis from route search or auto-analyze default code silently on mount
+  useEffect(() => {
+    if (search.id) {
+      const existing = appStore.getAnalysis(search.id);
+      if (existing) {
+        setCode(existing.code);
+        setLanguage(existing.language);
+        setCurrentAnalysis(existing);
+        setFileName(existing.project);
+        return;
+      }
+    }
+    // Silent initial analysis on mount (no modal overlay popup)
+    if (!currentAnalysis) {
+      handleRunAnalysis(code, language, fileName, false);
+    }
+  }, [search.id]);
+
+  // Update language and run silent analysis (no modal overlay popup)
+  const handleLanguageChange = (newLang: string) => {
+    setLanguage(newLang);
+    handleRunAnalysis(code, newLang, fileName, false);
+  };
+
+  const handleRunAnalysis = async (
+    codeToAnalyze = code,
+    langToAnalyze = language,
+    name = fileName,
+    showOverlay = false,
+  ) => {
+    if (showOverlay) {
+      setReady(false);
+      setAnalyzing(true);
+    }
+    try {
+      const result = await requestCodeAnalysis(codeToAnalyze, langToAnalyze, name);
+      setCurrentAnalysis(result);
+      appStore.addAnalysis(result);
+      if (showOverlay) {
+        toast.success("Analysis complete!", {
+          description: `${result.concepts.length} concepts detected in ${result.project}.`,
+        });
+      }
+    } catch (err) {
+      if (showOverlay) toast.error("Analysis failed. Please try again.");
+    } finally {
+      if (showOverlay) {
+        setAnalyzing(false);
+        setReady(true);
+      }
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setCode(content);
+        setFileName(file.name);
+
+        // Auto-detect language by file extension
+        let detectedLang = language;
+        if (file.name.endsWith(".py")) detectedLang = "Python";
+        else if (file.name.endsWith(".java")) detectedLang = "Java";
+        else if (file.name.endsWith(".ts") || file.name.endsWith(".tsx")) detectedLang = "TypeScript";
+        else if (file.name.endsWith(".js") || file.name.endsWith(".jsx")) detectedLang = "JavaScript";
+        else if (file.name.endsWith(".html") || file.name.endsWith(".css")) detectedLang = "HTML/CSS";
+
+        setLanguage(detectedLang);
+        toast.success(`Loaded ${file.name}`, { description: "Click Analyze to inspect concepts." });
+        handleRunAnalysis(content, detectedLang, file.name, true);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const detectedConcepts = currentAnalysis?.concepts || [];
+  const flowSteps = currentAnalysis?.flow || [];
 
   const highlight =
     hovered?.lines ??
-    DETECTED.find((c) => c.id === activeConcept)?.lines ??
+    detectedConcepts.find((c) => c.id === activeConcept)?.lines ??
     [];
 
   return (
@@ -62,9 +149,6 @@ function Analyze() {
         onDone={() => {
           setAnalyzing(false);
           setReady(true);
-          toast.success("Analysis ready", {
-            description: "8 concepts detected in AI Resume Analyzer.",
-          });
         }}
       />
 
@@ -73,12 +157,20 @@ function Analyze() {
         subtitle="Paste a file, detect the concepts behind it, then prove you understood."
       />
 
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        className="hidden"
+        accept=".js,.ts,.jsx,.tsx,.py,.java,.html,.css,.json,.txt"
+      />
+
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="panel flex flex-col p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <select
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => handleLanguageChange(e.target.value)}
               aria-label="Language"
               className="h-9 rounded-lg border border-border bg-surface-2 px-3 text-sm outline-none focus:border-primary/50"
             >
@@ -88,36 +180,38 @@ function Analyze() {
                 </option>
               ))}
             </select>
+
             <button
-              onClick={() => toast("File upload is simulated in this demo")}
+              onClick={() => fileInputRef.current?.click()}
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <FileUp className="size-4" /> Upload File
             </button>
+
             <button
               onClick={() => {
                 setCode(SAMPLE_CODE);
+                setFileName("useResumeAnalysis.ts");
+                setLanguage("React");
                 toast("Sample code pasted");
               }}
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              <ClipboardPaste className="size-4" /> Paste Code
+              <ClipboardPaste className="size-4" /> Sample Code
             </button>
+
             <button
-              onClick={() => {
-                setReady(false);
-                setAnalyzing(true);
-              }}
+              onClick={() => handleRunAnalysis(code, language, fileName, true)}
               className="ml-auto inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.02]"
             >
               <Play className="size-4" /> Analyze
             </button>
           </div>
 
-          <CodeEditor code={code} highlight={highlight} maxHeight="34rem" />
+          <CodeEditor code={code} onChange={setCode} highlight={highlight} maxHeight="34rem" />
 
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-mono">AI Resume Analyzer · {language}</span>
+            <span className="font-mono">{fileName || "Snippet"} · {language}</span>
             <span className="h-3 w-px bg-border" />
             <span>{code.split("\n").length} lines</span>
             {highlight.length > 0 && (
@@ -166,17 +260,23 @@ function Analyze() {
                   transition={{ duration: 0.2 }}
                   className="h-full"
                 >
-                  {tab === "Overview" && <Overview />}
+                  {tab === "Overview" && (
+                    <Overview analysis={currentAnalysis} />
+                  )}
                   {tab === "Concepts" && (
                     <div className="grid gap-4 sm:grid-cols-2">
-                      {DETECTED.map((c, i) => (
+                      {detectedConcepts.map((c, i) => (
                         <div
-                          key={c.id}
+                          key={c.id || i}
                           onMouseEnter={() => setActiveConcept(c.id)}
                           onMouseLeave={() => setActiveConcept(null)}
                         >
                           <ConceptCard
-                            concept={c}
+                            concept={{
+                              ...c,
+                              mastery: storeState.conceptMastery[c.id] ?? c.mastery ?? 70,
+                              related: ["Async/Await", "Promises", "Error Handling"],
+                            }}
                             index={i}
                             onSelect={() =>
                               toast(c.name, { description: c.summary })
@@ -192,13 +292,20 @@ function Analyze() {
                         Hover a node to highlight the lines that run at that moment.
                       </p>
                       <FlowDiagram
-                        steps={FLOW}
+                        steps={flowSteps}
                         activeId={hovered?.id ?? null}
                         onHover={setHovered}
                       />
                     </div>
                   )}
-                  {tab === "AI Tutor" && <AITutor className="h-full min-h-[30rem]" />}
+                  {tab === "AI Tutor" && (
+                    <AITutor
+                      code={code}
+                      language={language}
+                      quiz={currentAnalysis?.quiz}
+                      className="h-full min-h-[30rem]"
+                    />
+                  )}
                 </motion.div>
               </AnimatePresence>
             )}
@@ -209,12 +316,18 @@ function Analyze() {
   );
 }
 
-function Overview() {
+function Overview({ analysis }: { analysis: AnalysisResult | null }) {
   const metrics = [
-    { label: "Code Complexity", value: "Medium", tone: "warning" as const, pct: 58 },
-    { label: "Concepts Detected", value: "8", tone: "primary" as const, pct: 80 },
-    { label: "Difficulty", value: "Intermediate", tone: "cyan" as const, pct: 65 },
+    { label: "Code Complexity", value: analysis?.complexity || "Medium", tone: "warning" as const, pct: analysis?.complexity === "High" ? 85 : analysis?.complexity === "Low" ? 35 : 60 },
+    { label: "Concepts Detected", value: `${analysis?.concepts?.length || 8}`, tone: "primary" as const, pct: Math.min(100, (analysis?.concepts?.length || 8) * 12) },
+    { label: "Difficulty", value: analysis?.difficulty || "Intermediate", tone: "cyan" as const, pct: analysis?.difficulty === "Advanced" ? 85 : analysis?.difficulty === "Beginner" ? 40 : 65 },
   ];
+
+  const explanations = analysis?.explanation || [
+    "This code processes inputs, manages asynchronous state updates, and executes operations over HTTP.",
+    "Functions pause at await statements allowing other tasks on the event loop to run concurrently.",
+  ];
+
   return (
     <div>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -238,35 +351,14 @@ function Overview() {
           <Sparkles className="size-4" /> AI Explanation
         </p>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-muted-foreground">
-          <p>
-            This file exports a custom React hook called <code className="font-mono text-cyan">useResumeAnalysis</code>.
-            A hook is just a function that lets a component remember things and run work
-            over time — here it remembers the analysis result and whether a request is in
-            flight.
-          </p>
-          <p>
-            The <code className="font-mono text-cyan">analyze</code> function is marked{" "}
-            <code className="font-mono text-cyan">async</code>, which means it can pause.
-            It packs the uploaded file into a <code className="font-mono text-cyan">FormData</code>{" "}
-            body and sends it to an HTTP endpoint — in this project, API Gateway forwards
-            that request to an AWS Lambda function.
-          </p>
-          <p>
-            <code className="font-mono text-cyan">await</code> pauses until the server
-            responds, then <code className="font-mono text-cyan">res.json()</code> converts
-            the raw body into a JavaScript object. Finally the hook stores the result in
-            state so the UI re-renders with real data.
-          </p>
-          <p className="text-warning">
-            Worth noticing: nothing here handles a failed request. If the network drops,
-            the Promise rejects and the loading flag stays on forever — which is exactly
-            what Challenge #04 asks you to fix.
-          </p>
+          {explanations.map((exp, idx) => (
+            <p key={idx}>{exp}</p>
+          ))}
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-1.5">
-        {DETECTED.map((c) => (
+        {(analysis?.concepts || []).map((c) => (
           <Chip key={c.id} tone="primary">
             {c.name.toUpperCase()}
           </Chip>

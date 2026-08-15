@@ -3,7 +3,8 @@ import { motion } from "framer-motion";
 import { BookOpen, Code2 } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/app/AppShell";
 import { Chip, ProgressBar, difficultyTone } from "@/components/kit/primitives";
-import { CONCEPTS, HISTORY } from "@/lib/demo-data";
+import { CONCEPTS } from "@/lib/demo-data";
+import { useAppStore } from "@/lib/store";
 
 export const Route = createFileRoute("/learning")({
   head: () => ({
@@ -25,7 +26,14 @@ export const Route = createFileRoute("/learning")({
 });
 
 function Learning() {
-  const inProgress = CONCEPTS.filter((c) => c.mastery < 80).slice(0, 6);
+  const storeState = useAppStore();
+
+  const inProgress = CONCEPTS.map((c) => ({
+    ...c,
+    mastery: storeState.conceptMastery[c.id] ?? c.mastery,
+  }))
+    .filter((c) => c.mastery < 80)
+    .slice(0, 6);
 
   return (
     <AppShell title="My Learning">
@@ -81,10 +89,11 @@ function Learning() {
             <BookOpen className="size-4 text-cyan" /> Active projects
           </h2>
           <div className="mt-4 space-y-3">
-            {HISTORY.slice(0, 3).map((h) => (
+            {storeState.history.slice(0, 3).map((h) => (
               <Link
                 key={h.id}
                 to="/analyze"
+                search={{ id: h.id }}
                 className="hover-lift block rounded-xl border border-border bg-surface-2 p-4"
               >
                 <p className="text-sm font-medium">{h.project}</p>

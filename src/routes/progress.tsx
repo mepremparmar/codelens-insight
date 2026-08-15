@@ -14,7 +14,8 @@ import {
 } from "recharts";
 import { AppShell, PageHeader } from "@/components/app/AppShell";
 import { CountUp, ProgressBar } from "@/components/kit/primitives";
-import { ACTIVITY, CONCEPTS, MASTERY, WEAKEST } from "@/lib/demo-data";
+import { ACTIVITY, CONCEPTS } from "@/lib/demo-data";
+import { useAppStore } from "@/lib/store";
 
 export const Route = createFileRoute("/progress")({
   head: () => ({
@@ -43,6 +44,26 @@ const tooltipStyle = {
 } as const;
 
 function ProgressPage() {
+  const storeState = useAppStore();
+
+  const masteryValues = Object.values(storeState.conceptMastery);
+  const overallUnderstanding = Math.round(
+    masteryValues.reduce((a, b) => a + b, 0) / (masteryValues.length || 1),
+  );
+
+  const masteryChartData = CONCEPTS.slice(0, 6).map((c) => ({
+    name: c.name,
+    value: storeState.conceptMastery[c.id] ?? c.mastery,
+  }));
+
+  const sortedConcepts = [...CONCEPTS].sort((a, b) => {
+    const ma = storeState.conceptMastery[a.id] ?? a.mastery;
+    const mb = storeState.conceptMastery[b.id] ?? b.mastery;
+    return ma - mb;
+  });
+
+  const weakestConcepts = sortedConcepts.slice(0, 3);
+
   return (
     <AppShell title="Progress">
       <PageHeader
@@ -58,11 +79,11 @@ function ProgressPage() {
         >
           <p className="text-sm text-muted-foreground">Overall Understanding</p>
           <p className="mt-3 text-5xl font-semibold tracking-tight">
-            <CountUp to={78} suffix="%" />
+            <CountUp to={overallUnderstanding} suffix="%" />
           </p>
-          <ProgressBar className="mt-5" value={78} tone="cyan" />
+          <ProgressBar className="mt-5" value={overallUnderstanding} tone="cyan" />
           <p className="mt-4 text-xs text-muted-foreground">
-            Up 6 points in the last 30 days, driven mostly by React and async work.
+            Calculated across {storeState.history.length} code analyses and {storeState.completedChallenges.length} completed challenges.
           </p>
         </motion.section>
 
@@ -75,7 +96,7 @@ function ProgressPage() {
           <h2 className="text-base font-semibold">Concept Mastery</h2>
           <div className="mt-4 h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={MASTERY} layout="vertical" margin={{ left: 20 }}>
+              <BarChart data={masteryChartData} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid horizontal={false} stroke="var(--border)" />
                 <XAxis type="number" domain={[0, 100]} stroke="var(--muted-foreground)" fontSize={11} />
                 <YAxis
@@ -153,20 +174,20 @@ function ProgressPage() {
       >
         <h2 className="text-base font-semibold">Your Weakest Concepts</h2>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {WEAKEST.map((w, i) => {
-            const c = CONCEPTS.find((x) => x.name === w);
+          {weakestConcepts.map((c, i) => {
+            const masteryVal = storeState.conceptMastery[c.id] ?? c.mastery;
             return (
-              <div key={w} className="rounded-xl border border-border bg-surface-2 p-4">
+              <div key={c.id} className="rounded-xl border border-border bg-surface-2 p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs text-muted-foreground">
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <span className="font-mono text-xs text-warning">
-                    {c?.mastery ?? 42}%
+                    {masteryVal}%
                   </span>
                 </div>
-                <p className="mt-2 text-sm font-medium">{w}</p>
-                <ProgressBar className="mt-3" value={c?.mastery ?? 42} tone="warning" />
+                <p className="mt-2 text-sm font-medium">{c.name}</p>
+                <ProgressBar className="mt-3" value={masteryVal} tone="warning" />
               </div>
             );
           })}

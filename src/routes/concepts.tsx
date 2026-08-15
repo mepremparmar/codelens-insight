@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell, PageHeader } from "@/components/app/AppShell";
 import { ConceptCard } from "@/components/kit/ConceptCard";
 import { CONCEPTS, CONCEPT_CATEGORIES } from "@/lib/demo-data";
+import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/concepts")({
@@ -27,6 +28,8 @@ export const Route = createFileRoute("/concepts")({
 });
 
 function Concepts() {
+  const storeState = useAppStore();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
 
@@ -85,17 +88,24 @@ function Concepts() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((c, i) => (
-            <ConceptCard
-              key={c.id}
-              concept={c}
-              index={i}
-              ctaLabel="Start Learning"
-              onSelect={() =>
-                toast(c.name, { description: `Starting a lesson on ${c.name}.` })
-              }
-            />
-          ))}
+          {filtered.map((c, i) => {
+            const masteryVal = storeState.conceptMastery[c.id] ?? c.mastery;
+            return (
+              <ConceptCard
+                key={c.id}
+                concept={{
+                  ...c,
+                  mastery: masteryVal,
+                }}
+                index={i}
+                ctaLabel="Start Learning"
+                onSelect={() => {
+                  toast(`Starting lesson on ${c.name}`);
+                  navigate({ to: "/analyze" });
+                }}
+              />
+            );
+          })}
         </div>
       )}
     </AppShell>

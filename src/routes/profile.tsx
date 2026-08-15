@@ -11,6 +11,7 @@ import { AppShell, PageHeader } from "@/components/app/AppShell";
 import { StatCard } from "@/components/kit/StatCard";
 import { Chip } from "@/components/kit/primitives";
 import { RADAR } from "@/lib/demo-data";
+import { useAppStore } from "@/lib/store";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -32,30 +33,45 @@ export const Route = createFileRoute("/profile")({
 });
 
 function Profile() {
+  const storeState = useAppStore();
+
+  const totalAnalyses = storeState.history.length;
+  const totalConcepts = Object.keys(storeState.conceptMastery).length;
+  const totalChallenges = storeState.completedChallenges.length;
+  const streak = storeState.profile.streak;
+
+  const initials = storeState.profile.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+
   return (
     <AppShell title="Profile">
       <PageHeader title="Profile" subtitle="Your developer learning identity." />
 
       <section className="panel flex flex-wrap items-center gap-5 p-6">
         <span className="grid size-20 place-items-center rounded-2xl bg-gradient-to-br from-primary to-cyan text-2xl font-semibold text-primary-foreground">
-          PP
+          {initials}
         </span>
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Prem Parmar</h2>
-          <p className="text-sm text-muted-foreground">Developer in Progress</p>
+          <h2 className="text-xl font-semibold tracking-tight">{storeState.profile.name}</h2>
+          <p className="text-sm text-muted-foreground">{storeState.profile.role}</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            <Chip tone="primary">React</Chip>
-            <Chip tone="cyan">AWS</Chip>
-            <Chip>TypeScript</Chip>
+            {storeState.onboarding.interests.map((interest) => (
+              <Chip key={interest} tone="primary">
+                {interest}
+              </Chip>
+            ))}
           </div>
         </div>
       </section>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Analyses" value={24} icon={Code2} index={0} />
-        <StatCard label="Concepts" value={68} icon={Brain} index={1} />
-        <StatCard label="Challenges" value={31} icon={Swords} index={2} />
-        <StatCard label="Day Streak" value={7} icon={Flame} index={3} />
+        <StatCard label="Analyses" value={totalAnalyses} icon={Code2} index={0} />
+        <StatCard label="Concepts" value={totalConcepts} icon={Brain} index={1} />
+        <StatCard label="Challenges" value={totalChallenges} icon={Swords} index={2} />
+        <StatCard label="Day Streak" value={streak} icon={Flame} index={3} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -86,7 +102,7 @@ function Profile() {
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
               Learning Style
             </p>
-            <p className="mt-2 text-lg font-semibold">Project-based learner</p>
+            <p className="mt-2 text-lg font-semibold">{storeState.profile.learningStyle}</p>
             <p className="mt-2 text-sm text-muted-foreground">
               You retain most when concepts arrive attached to code you're already
               building, so CodeLens leads with your own projects.
@@ -97,10 +113,10 @@ function Profile() {
               Current Goal
             </p>
             <p className="mt-2 text-lg font-semibold">
-              Become a stronger full-stack/cloud developer
+              {storeState.profile.currentGoal}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Next milestones: Error Handling to 75%, API Gateway to 60%.
+              Experience level: {storeState.onboarding.experience}.
             </p>
           </section>
         </div>

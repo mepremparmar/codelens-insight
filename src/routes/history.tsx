@@ -4,7 +4,7 @@ import { ArrowRight, Code2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AppShell, PageHeader } from "@/components/app/AppShell";
 import { Chip, ProgressBar, difficultyTone } from "@/components/kit/primitives";
-import { HISTORY } from "@/lib/demo-data";
+import { useAppStore } from "@/lib/store";
 
 export const Route = createFileRoute("/history")({
   head: () => ({
@@ -25,26 +25,27 @@ export const Route = createFileRoute("/history")({
   component: HistoryPage,
 });
 
-const LANGS = ["All", "React + TypeScript", "TypeScript", "Python", "Java", "HTML/CSS"];
+const LANGS = ["All", "React + TypeScript", "TypeScript", "Python", "Java", "HTML/CSS", "React"];
 const DIFFS = ["All", "Beginner", "Intermediate", "Advanced"];
 const DATES = ["All time", "Last 7 days", "Last 30 days"];
 
 function HistoryPage() {
+  const storeState = useAppStore();
   const [lang, setLang] = useState("All");
   const [diff, setDiff] = useState("All");
   const [date, setDate] = useState("All time");
 
   const items = useMemo(
     () =>
-      HISTORY.filter(
+      storeState.history.filter(
         (h) =>
-          (lang === "All" || h.language === lang) &&
+          (lang === "All" || h.language.includes(lang)) &&
           (diff === "All" || h.difficulty === diff) &&
           (date === "All time" ||
             (date === "Last 7 days" && !h.when.includes("week")) ||
             date === "Last 30 days"),
       ),
-    [lang, diff, date],
+    [storeState.history, lang, diff, date],
   );
 
   return (
@@ -87,16 +88,15 @@ function HistoryPage() {
 
       {items.length === 0 ? (
         <div className="panel p-14 text-center">
-          <p className="text-base font-medium">No code analyzed yet.</p>
+          <p className="text-base font-medium">No code analyzed matching those filters.</p>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            Your first analysis will turn code into concepts, visual flows and interactive
-            challenges.
+            Your analyses will turn code into concepts, visual flows and interactive challenges.
           </p>
           <Link
             to="/analyze"
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground"
           >
-            Analyze Your First Code
+            Analyze Code Now
           </Link>
         </div>
       ) : (
@@ -137,6 +137,7 @@ function HistoryPage() {
               <ProgressBar className="mt-4" value={h.score} tone="cyan" />
               <Link
                 to="/analyze"
+                search={{ id: h.id }}
                 className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 px-4 py-2.5 text-sm font-medium transition-colors hover:border-border-strong"
               >
                 Continue Learning <ArrowRight className="size-4" />

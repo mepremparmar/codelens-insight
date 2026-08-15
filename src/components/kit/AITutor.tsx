@@ -1,51 +1,102 @@
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, CornerDownLeft, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { requestTutorAnswer } from "@/lib/api";
 
 type Msg = { role: "ai" | "student"; text: string };
 
-const QUIZ = {
-  question: "Before I explain further, what do you think happens if the API request fails?",
-  options: [
-    { id: "A", text: "The function returns undefined silently." },
-    { id: "B", text: "The awaited Promise rejects and throws inside the async function." },
-    { id: "C", text: "The browser retries the request automatically." },
-    { id: "D", text: "Nothing — await ignores failed requests." },
-  ],
-  correct: "B",
-  feedback:
-    "Great! You understand the relationship between async/await and Promises. A rejected Promise becomes a thrown error at the await point — which is exactly why try/catch matters here.",
+type QuizType = {
+  question: string;
+  options: Array<{ id: string; text: string }>;
+  correct: string;
+  feedback: string;
 };
 
-const SUGGESTIONS = [
-  "Why are we using await here?",
-  "What happens if res.json() fails?",
-  "How would AWS Lambda handle this?",
-];
+const DEFAULT_QUIZ: QuizType = {
+  question: "What determines the primary execution flow of this code snippet?",
+  options: [
+    { id: "A", text: "Sequential evaluation of expressions and branching control flow." },
+    { id: "B", text: "Randomized thread execution order." },
+    { id: "C", text: "Automatic server deployment on load." },
+    { id: "D", text: "Garbage collection allocation frequencies." },
+  ],
+  correct: "A",
+  feedback: "Correct! Statements execute top-to-bottom through scope and control structures.",
+};
 
-export function AITutor({ className }: { className?: string }) {
-  const [messages, setMessages] = useState<Msg[]>([
-    { role: "student", text: "Why are we using await here?" },
-    {
-      role: "ai",
-      text: "`await` pauses the execution of this async function until the Promise returned by `fetch` resolves. The rest of the browser keeps running — only this function waits. Without it you'd hold a pending Promise instead of the response.",
-    },
-  ]);
+export function AITutor({
+  code = "",
+  language = "JavaScript",
+  quiz = DEFAULT_QUIZ,
+  className,
+}: {
+  code?: string;
+  language?: string;
+  quiz?: QuizType;
+  className?: string;
+}) {
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [answer, setAnswer] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [dynamicSuggestions, setDynamicSuggestions] = useState<string[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const send = (text: string) => {
-    if (!text.trim()) return;
-    setMessages((m) => [
-      ...m,
-      { role: "student", text },
-      {
-        role: "ai",
-        text: "Good question. In this file that behaviour is driven by the `analyze` callback: it awaits the network round-trip, then hands the parsed JSON to React state so the component re-renders with real data.",
-      },
+  const activeQuiz = quiz || DEFAULT_QUIZ;
+
+  // Initialize tutor welcome message whenever code or language changes
+  useEffect(() => {
+    setAnswer(null);
+
+    const firstLine = code.split("\n").find((l) => l.trim().length > 0)?.trim() || "";
+    const fnMatch = code.match(/(def\s+\w+|function\s+\w+|class\s+\w+|const\s+\w+)/);
+    const fnName = fnMatch ? fnMatch[0] : "";
+
+    const initialAiMsg = fnName
+      ? `Hello! I'm your CodeLens Tutor. I see you're working with **${language}** and defined \`${fnName}\`. Ask me about any line, concept, or failure case!`
+      : `Hello! I'm your CodeLens Tutor for **${language}**. Ask me anything about this code or how to improve it!`;
+
+    setMessages([
+      { role: "ai", text: initialAiMsg },
     ]);
+
+    setDynamicSuggestions([
+      firstLine ? "Explain line 1" : "Explain the first line",
+      code.includes("try") || code.includes("catch") || code.includes("except")
+        ? "How does error handling work here?"
+        : "How do I add error handling?",
+      code.includes("async") || code.includes("await") || code.includes("def")
+        ? "What is the execution flow?"
+        : "How can I refactor this snippet?",
+    ]);
+  }, [code, language, quiz]);
+
+  // Scroll to bottom when messages update
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  const send = async (text: string) => {
+    if (!text.trim() || loading) return;
+    setMessages((m) => [...m, { role: "student", text }]);
     setInput("");
+    setLoading(true);
+
+    try {
+      const res = await requestTutorAnswer(text, code, language);
+      setMessages((m) => [...m, { role: "ai", text: res.text }]);
+      if (res.suggestedNext && res.suggestedNext.length > 0) {
+        setDynamicSuggestions(res.suggestedNext);
+      }
+    } catch {
+      setMessages((m) => [
+        ...m,
+        { role: "ai", text: `I'm analyzing your ${language} code. Feel free to ask about specific line numbers or functions!` },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,8 +106,8 @@ export function AITutor({ className }: { className?: string }) {
           <Sparkles className="size-4" />
         </span>
         <div>
-          <p className="text-sm font-semibold">CodeLens Tutor</p>
-          <p className="text-xs text-muted-foreground">Ask me anything about this code.</p>
+          <p className="text-sm font-semibold">CodeLens AI Tutor</p>
+          <p className="text-xs text-muted-foreground">Connected to active {language} workspace.</p>
         </div>
       </div>
 
@@ -70,9 +121,9 @@ export function AITutor({ className }: { className?: string }) {
           >
             <div
               className={cn(
-                "max-w-[85%] rounded-2xl border px-4 py-3 text-sm leading-relaxed",
+                "max-w-[85%] rounded-2xl border px-4 py-3 text-sm leading-relaxed whitespace-pre-line",
                 m.role === "student"
-                  ? "border-primary/25 bg-[color-mix(in_oklab,var(--primary)_14%,transparent)]"
+                  ? "border-primary/25 bg-[color-mix(in_oklab,var(--primary)_14%,transparent)] text-foreground"
                   : "border-border bg-surface-2 text-muted-foreground",
               )}
             >
@@ -81,12 +132,21 @@ export function AITutor({ className }: { className?: string }) {
           </motion.div>
         ))}
 
+        {loading && (
+          <div className="flex justify-start">
+            <div className="flex items-center gap-2 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground">
+              <span className="size-2 animate-ping rounded-full bg-primary" /> Analyzing snippet…
+            </div>
+          </div>
+        )}
+
         <div className="rounded-2xl border border-cyan/25 bg-[color-mix(in_oklab,var(--cyan)_8%,var(--surface))] p-4">
-          <p className="text-sm font-medium">{QUIZ.question}</p>
+          <p className="text-xs font-mono uppercase tracking-wider text-cyan mb-1">Concept Quiz</p>
+          <p className="text-sm font-medium">{activeQuiz.question}</p>
           <div className="mt-3 space-y-2">
-            {QUIZ.options.map((o) => {
+            {activeQuiz.options.map((o) => {
               const chosen = answer === o.id;
-              const isCorrect = o.id === QUIZ.correct;
+              const isCorrect = o.id === activeQuiz.correct;
               return (
                 <button
                   key={o.id}
@@ -97,11 +157,11 @@ export function AITutor({ className }: { className?: string }) {
                     !answer && "border-border bg-surface hover:border-primary/40",
                     answer &&
                       isCorrect &&
-                      "border-success/50 bg-[color-mix(in_oklab,var(--success)_12%,transparent)]",
+                      "border-success/50 bg-[color-mix(in_oklab,var(--success)_12%,transparent)] text-foreground",
                     answer &&
                       chosen &&
                       !isCorrect &&
-                      "border-destructive/50 bg-[color-mix(in_oklab,var(--destructive)_12%,transparent)]",
+                      "border-destructive/50 bg-[color-mix(in_oklab,var(--destructive)_12%,transparent)] text-foreground",
                     answer && !chosen && !isCorrect && "border-border opacity-50",
                   )}
                 >
@@ -125,19 +185,21 @@ export function AITutor({ className }: { className?: string }) {
                 className="overflow-hidden"
               >
                 <p className="pt-3 text-sm leading-relaxed text-success">
-                  {answer === QUIZ.correct
-                    ? `✓ Correct — ${QUIZ.feedback}`
-                    : "Not quite — the awaited Promise rejects, which throws inside the async function. That's why try/catch is the fix."}
+                  {answer === activeQuiz.correct
+                    ? `✓ Correct — ${activeQuiz.feedback}`
+                    : `Not quite — ${activeQuiz.feedback || "Review the execution flow for this snippet."}`}
                 </p>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
+
+        <div ref={chatEndRef} />
       </div>
 
       <div className="border-t border-border pt-4">
         <div className="mb-2 flex flex-wrap gap-1.5">
-          {SUGGESTIONS.map((s) => (
+          {dynamicSuggestions.map((s) => (
             <button
               key={s}
               onClick={() => send(s)}
@@ -157,12 +219,13 @@ export function AITutor({ className }: { className?: string }) {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about a line, a concept, or a failure case…"
+            placeholder={`Ask about line numbers, ${language} concepts, or error guards…`}
             className="h-8 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <button
             type="submit"
-            className="rounded-lg border border-border bg-surface-2 p-1.5 text-muted-foreground transition-colors hover:text-primary"
+            disabled={loading}
+            className="rounded-lg border border-border bg-surface-2 p-1.5 text-muted-foreground transition-colors hover:text-primary disabled:opacity-50"
             aria-label="Send question"
           >
             <CornerDownLeft className="size-4" />
